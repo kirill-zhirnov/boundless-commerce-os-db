@@ -9,5 +9,5 @@ There are 2 required environment variables:
 
 ## Launching DB natively
 
-If you want to run DB naively - execute queries from `./postgres/docker-startup.sh`
+If you want to run DB naively - execute queries from `./docker/postgres/docker-startup.sh`
 
