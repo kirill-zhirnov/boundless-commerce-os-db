@@ -4430,7 +4430,7 @@ CREATE TABLE public.api_token (
     token_id integer NOT NULL,
     name character varying(255),
     client_id character varying(20),
-    secret character varying(50),
+    secret character varying(255),
     permanent_token character varying(300) DEFAULT NULL::character varying,
     require_exp boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
@@ -9755,10 +9755,6 @@ CREATE VIEW public.vw_product_list AS
     product.external_id,
     inventory_item.item_id,
     manufacturer.manufacturer_id,
-    price.price_id,
-    price.alias AS price_alias,
-    final_price.point_id,
-    json_build_object('value', final_price.value, 'min', final_price.min, 'max', final_price.max, 'old', final_price.old, 'old_min', final_price.old_min, 'old_max', final_price.old_max, 'currency_alias', currency.alias) AS price,
     json_build_object('description', pt.description, 'custom_title', pt.custom_title, 'meta_description', pt.meta_description) AS text,
     json_build_object('available_qty', product_prop.available_qty, 'reserved_qty', product_prop.reserved_qty, 'country_of_origin', product_prop.country_of_origin, 'extra', product_prop.extra, 'size', product_prop.size, 'attr_values', product_prop.characteristic, 'tax_status', product_prop.tax_status, 'tax_class_id', product_prop.tax_class_id, 'arbitrary_data', product_prop.arbitrary_data) AS props,
     json_build_object('manufacturer_id', manufacturer.manufacturer_id, 'title', manufacturer_text.title, 'url_key', manufacturer_text.url_key, 'image', manufacturer_image.path) AS manufacturer,
@@ -9772,12 +9768,12 @@ CREATE VIEW public.vw_product_list AS
     compiled_labels.labels,
     product.status,
     product.deleted_at,
-    COALESCE(final_price.min, final_price.value) AS sort_price,
+    item_sort_price.sort_price,
         CASE
             WHEN (product_prop.available_qty > 0) THEN 1
             ELSE 0
         END AS sort_in_stock
-   FROM (((((((((((((((((public.product
+   FROM (((((((((((((((public.product
      JOIN public.product_text pt ON ((product.product_id = pt.product_id)))
      JOIN public.lang ON ((pt.lang_id = lang.lang_id)))
      JOIN public.inventory_item ON ((inventory_item.product_id = product.product_id)))
@@ -9787,9 +9783,6 @@ CREATE VIEW public.vw_product_list AS
      LEFT JOIN public.manufacturer ON (((manufacturer.manufacturer_id = product.manufacturer_id) AND (manufacturer.deleted_at IS NULL))))
      LEFT JOIN public.manufacturer_text ON (((manufacturer_text.manufacturer_id = manufacturer.manufacturer_id) AND (manufacturer_text.lang_id = lang.lang_id))))
      LEFT JOIN public.image manufacturer_image ON (((manufacturer_image.image_id = manufacturer.image_id) AND (manufacturer_image.deleted_at IS NULL))))
-     LEFT JOIN public.final_price ON ((final_price.item_id = inventory_item.item_id)))
-     LEFT JOIN public.price ON (((final_price.price_id = price.price_id) AND (price.deleted_at IS NULL))))
-     LEFT JOIN public.currency ON ((final_price.currency_id = currency.currency_id)))
      LEFT JOIN public.product_category_rel def_cat_rel ON (((def_cat_rel.product_id = product.product_id) AND (def_cat_rel.is_default IS TRUE))))
      LEFT JOIN public.category def_category ON (((def_category.category_id = def_cat_rel.category_id) AND (def_category.deleted_at IS NULL) AND (def_category.status = 'published'::public.publishing_status))))
      LEFT JOIN public.category_text def_category_text ON (((def_category.category_id = def_category_text.category_id) AND (def_category_text.lang_id = lang.lang_id))))
@@ -9812,7 +9805,12 @@ CREATE VIEW public.vw_product_list AS
              JOIN public.label USING (label_id))
              JOIN public.label_text USING (label_id))
           GROUP BY product_label_rel.product_id, label_text.lang_id) compiled_labels ON (((compiled_labels.product_id = product.product_id) AND (compiled_labels.lang_id = lang.lang_id))))
-  WHERE ((lang.lang_id = 1) AND ((final_price.point_id = 1) OR (final_price.point_id IS NULL)));
+     LEFT JOIN ( SELECT final_price.item_id,
+            COALESCE(final_price.min, final_price.value) AS sort_price
+           FROM (public.final_price
+             JOIN public.price USING (price_id))
+          WHERE ((final_price.point_id = 1) AND (price.alias OPERATOR(public.=) 'selling_price'::public.citext))) item_sort_price ON ((item_sort_price.item_id = inventory_item.item_id)))
+  WHERE (lang.lang_id = 1);
 
 
 --
