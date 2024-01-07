@@ -7,7 +7,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-EOSQL
     create database delivery;
     create database babylon_saas;
     create database babylon_sample;
-    create user delivery_view with password '$DELIVERY_VIEW_DB_PASS';
+    create user delivery_view with password '4mK5jdq3pT';
 EOSQL
 
 #tar -C /tmp -xzvf /root/delivery.tar.gz

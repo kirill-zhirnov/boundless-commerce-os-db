@@ -5,7 +5,6 @@
 There are 2 required environment variables:
 
 - `POSTGRES_PASSWORD`
-- `DELIVERY_VIEW_DB_PASS`
 
 ## Launching with Docker-Compose:
 
@@ -18,7 +17,6 @@ services:
     image: kirillzh87/boundless-commerce-db:latest
     environment:
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
-      DELIVERY_VIEW_DB_PASS: "${DELIVERY_VIEW_DB_PASS}"
     healthcheck:
       test: pg_isready -U postgres
       interval: 10s
