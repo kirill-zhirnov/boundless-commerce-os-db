@@ -18663,6 +18663,13 @@ CREATE INDEX person_search_lower_idx ON public.person_search USING gin (lower(se
 
 
 --
+-- Name: person_site_id_email_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE UNIQUE INDEX person_site_id_email_idx ON public.person USING btree (site_id, email) WHERE (registered_at IS NOT NULL);
+
+
+--
 -- Name: person_site_id_email_registered_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
