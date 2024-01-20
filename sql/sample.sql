@@ -1466,26 +1466,6 @@ $$;
 
 
 --
--- Name: customer_group_after_insert(); Type: FUNCTION; Schema: public; Owner: -
---
-
-CREATE FUNCTION public.customer_group_after_insert() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-	begin
-		insert into customer_group_text (group_id, lang_id)
-		select
-			NEW.group_id,
-			lang_id
-		from
-			lang;
-
-		return NEW;
-	end;
-$$;
-
-
---
 -- Name: delivery_after_insert(); Type: FUNCTION; Schema: public; Owner: -
 --
 
@@ -5554,9 +5534,9 @@ ALTER SEQUENCE public.custom_item_custom_item_id_seq OWNED BY public.custom_item
 CREATE TABLE public.customer_group (
     group_id integer NOT NULL,
     alias public.citext,
-    price_id integer,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    deleted_at timestamp with time zone
+    deleted_at timestamp with time zone,
+    title public.citext NOT NULL
 );
 
 
@@ -5577,17 +5557,6 @@ CREATE SEQUENCE public.customer_group_group_id_seq
 --
 
 ALTER SEQUENCE public.customer_group_group_id_seq OWNED BY public.customer_group.group_id;
-
-
---
--- Name: customer_group_text; Type: TABLE; Schema: public; Owner: -
---
-
-CREATE TABLE public.customer_group_text (
-    group_id integer,
-    lang_id integer,
-    title public.citext
-);
 
 
 --
@@ -7318,6 +7287,16 @@ CREATE TABLE public.person_auth (
 
 
 --
+-- Name: person_group_rel; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.person_group_rel (
+    person_id integer NOT NULL,
+    group_id integer NOT NULL
+);
+
+
+--
 -- Name: person_person_id_seq; Type: SEQUENCE; Schema: public; Owner: -
 --
 
@@ -7345,7 +7324,6 @@ CREATE TABLE public.person_profile (
     first_name public.citext,
     last_name public.citext,
     patronymic public.citext,
-    group_id integer,
     phone character varying(100),
     receive_marketing_info boolean DEFAULT false NOT NULL,
     comment text,
@@ -7472,7 +7450,18 @@ CREATE TABLE public.price (
     sort integer NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     deleted_at timestamp with time zone,
-    has_old_price boolean DEFAULT false NOT NULL
+    has_old_price boolean DEFAULT false NOT NULL,
+    is_public boolean DEFAULT false NOT NULL
+);
+
+
+--
+-- Name: price_group_rel; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.price_group_rel (
+    price_id integer NOT NULL,
+    group_id integer NOT NULL
 );
 
 
@@ -9394,6 +9383,7 @@ CREATE VIEW public.vw_inventory_item AS
            FROM ((public.final_price
              JOIN public.price USING (price_id))
              JOIN public.currency USING (currency_id))
+          WHERE ((price.is_public IS TRUE) AND (price.deleted_at IS NULL))
           GROUP BY final_price.item_id) compiled_prices ON ((inventory_item.item_id = compiled_prices.item_id)))
      LEFT JOIN public.custom_item ON ((custom_item.custom_item_id = inventory_item.custom_item_id))),
     ( SELECT ((setting.value)::text)::boolean AS value
@@ -9943,64 +9933,6 @@ CREATE MATERIALIZED VIEW public.vw_shipping AS
 
 
 --
--- Name: vw_shipping_city; Type: MATERIALIZED VIEW; Schema: public; Owner: -
---
-
-CREATE MATERIALIZED VIEW public.vw_shipping_city AS
- SELECT shipping_city.shipping_id,
-    shipping_city.city_id,
-    shipping_city.type,
-    shipping_city.local_id
-   FROM public.shipping_city
-  WITH NO DATA;
-
-
---
--- Name: zip; Type: FOREIGN TABLE; Schema: public; Owner: -
---
-
-CREATE FOREIGN TABLE public.zip (
-    zip_id integer NOT NULL,
-    country_id integer NOT NULL,
-    city_id integer NOT NULL,
-    zip character varying(30) NOT NULL
-)
-SERVER delivery_server
-OPTIONS (
-    schema_name 'public',
-    table_name 'zip'
-);
-ALTER FOREIGN TABLE public.zip ALTER COLUMN zip_id OPTIONS (
-    column_name 'zip_id'
-);
-ALTER FOREIGN TABLE public.zip ALTER COLUMN country_id OPTIONS (
-    column_name 'country_id'
-);
-ALTER FOREIGN TABLE public.zip ALTER COLUMN city_id OPTIONS (
-    column_name 'city_id'
-);
-ALTER FOREIGN TABLE public.zip ALTER COLUMN zip OPTIONS (
-    column_name 'zip'
-);
-
-
---
--- Name: vw_shipping_zip; Type: MATERIALIZED VIEW; Schema: public; Owner: -
---
-
-CREATE MATERIALIZED VIEW public.vw_shipping_zip AS
- SELECT shipping_zip.zip_id,
-    shipping_zip.shipping_id,
-    shipping_zip.courier,
-    zip.country_id,
-    zip.city_id,
-    zip.zip
-   FROM (public.shipping_zip
-     JOIN public.zip USING (zip_id))
-  WITH NO DATA;
-
-
---
 -- Name: vw_track_inventory; Type: VIEW; Schema: public; Owner: -
 --
 
@@ -10128,6 +10060,35 @@ CREATE SEQUENCE public.webhook_webhook_id_seq
 --
 
 ALTER SEQUENCE public.webhook_webhook_id_seq OWNED BY public.webhook.webhook_id;
+
+
+--
+-- Name: zip; Type: FOREIGN TABLE; Schema: public; Owner: -
+--
+
+CREATE FOREIGN TABLE public.zip (
+    zip_id integer NOT NULL,
+    country_id integer NOT NULL,
+    city_id integer NOT NULL,
+    zip character varying(30) NOT NULL
+)
+SERVER delivery_server
+OPTIONS (
+    schema_name 'public',
+    table_name 'zip'
+);
+ALTER FOREIGN TABLE public.zip ALTER COLUMN zip_id OPTIONS (
+    column_name 'zip_id'
+);
+ALTER FOREIGN TABLE public.zip ALTER COLUMN country_id OPTIONS (
+    column_name 'country_id'
+);
+ALTER FOREIGN TABLE public.zip ALTER COLUMN city_id OPTIONS (
+    column_name 'city_id'
+);
+ALTER FOREIGN TABLE public.zip ALTER COLUMN zip OPTIONS (
+    column_name 'zip'
+);
 
 
 --
@@ -11087,6 +11048,7 @@ COPY public.auth_resource (resource_id, parent_id, alias, title) FROM stdin;
 313	99	system:admin:tax	system:admin:tax
 315	19	catalog:collection	catalog:collection
 319	137	payment:paypal	payment:paypal
+331	20	catalog:admin:prices	catalog:admin:prices
 \.
 
 
@@ -11187,6 +11149,8 @@ COPY public.auth_rule (rule_id, role_id, resource_id, task_id, is_allowed) FROM 
 116	1	319	\N	t
 117	6	181	\N	t
 118	5	181	\N	t
+119	2	47	\N	t
+120	2	331	\N	t
 \.
 
 
@@ -12417,17 +12381,8 @@ COPY public.custom_item (custom_item_id, title, price) FROM stdin;
 -- Data for Name: customer_group; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.customer_group (group_id, alias, price_id, created_at, deleted_at) FROM stdin;
-1	retail_buyer	\N	2015-08-13 11:28:49.151814+00	\N
-\.
-
-
---
--- Data for Name: customer_group_text; Type: TABLE DATA; Schema: public; Owner: -
---
-
-COPY public.customer_group_text (group_id, lang_id, title) FROM stdin;
-1	1	Розничный покупатель
+COPY public.customer_group (group_id, alias, created_at, deleted_at, title) FROM stdin;
+2	vip-customers	2024-01-20 15:27:33.906436+00	\N	VIP customers
 \.
 
 
@@ -14272,11 +14227,19 @@ COPY public.person_auth (person_id, pass, email_confirmed) FROM stdin;
 
 
 --
+-- Data for Name: person_group_rel; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.person_group_rel (person_id, group_id) FROM stdin;
+\.
+
+
+--
 -- Data for Name: person_profile; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.person_profile (person_id, first_name, last_name, patronymic, group_id, phone, receive_marketing_info, comment, custom_attrs) FROM stdin;
-1	\N	\N	\N	\N	\N	f	\N	\N
+COPY public.person_profile (person_id, first_name, last_name, patronymic, phone, receive_marketing_info, comment, custom_attrs) FROM stdin;
+1	\N	\N	\N	\N	f	\N	\N
 \.
 
 
@@ -14347,9 +14310,17 @@ COPY public.point_sale (point_id, site_id) FROM stdin;
 -- Data for Name: price; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.price (price_id, alias, sort, created_at, deleted_at, has_old_price) FROM stdin;
-8	purchase_price	10	2015-07-21 13:33:20.781253+00	\N	f
-7	selling_price	0	2015-07-21 13:33:20.781253+00	\N	t
+COPY public.price (price_id, alias, sort, created_at, deleted_at, has_old_price, is_public) FROM stdin;
+8	purchase_price	10	2015-07-21 13:33:20.781253+00	\N	f	f
+7	selling_price	0	2015-07-21 13:33:20.781253+00	\N	t	t
+\.
+
+
+--
+-- Data for Name: price_group_rel; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+COPY public.price_group_rel (price_id, group_id) FROM stdin;
 \.
 
 
@@ -15506,14 +15477,14 @@ SELECT pg_catalog.setval('public.article_article_id_seq', 3, true);
 -- Name: auth_resource_resource_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.auth_resource_resource_id_seq', 325, true);
+SELECT pg_catalog.setval('public.auth_resource_resource_id_seq', 331, true);
 
 
 --
 -- Name: auth_rule_rule_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.auth_rule_rule_id_seq', 118, true);
+SELECT pg_catalog.setval('public.auth_rule_rule_id_seq', 120, true);
 
 
 --
@@ -15653,7 +15624,7 @@ SELECT pg_catalog.setval('public.custom_item_custom_item_id_seq', 1, false);
 -- Name: customer_group_group_id_seq; Type: SEQUENCE SET; Schema: public; Owner: -
 --
 
-SELECT pg_catalog.setval('public.customer_group_group_id_seq', 1, true);
+SELECT pg_catalog.setval('public.customer_group_group_id_seq', 2, true);
 
 
 --
@@ -17125,6 +17096,14 @@ ALTER TABLE ONLY public.person_auth
 
 
 --
+-- Name: person_group_rel person_group_rel_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.person_group_rel
+    ADD CONSTRAINT person_group_rel_pkey PRIMARY KEY (person_id, group_id);
+
+
+--
 -- Name: person person_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -17202,6 +17181,14 @@ ALTER TABLE ONLY public.point_sale
 
 ALTER TABLE ONLY public.price
     ADD CONSTRAINT price_alias_key UNIQUE (alias);
+
+
+--
+-- Name: price_group_rel price_group_rel_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.price_group_rel
+    ADD CONSTRAINT price_group_rel_pkey PRIMARY KEY (price_id, group_id);
 
 
 --
@@ -18642,6 +18629,13 @@ CREATE INDEX person_deleted_at_status_idx ON public.person USING btree (deleted_
 
 
 --
+-- Name: person_group_rel_group_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX person_group_rel_group_id_idx ON public.person_group_rel USING btree (group_id);
+
+
+--
 -- Name: person_is_owner_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -18709,6 +18703,20 @@ CREATE UNIQUE INDEX price_alias_idx ON public.price USING btree (alias);
 --
 
 CREATE INDEX price_deleted_at_idx ON public.price USING btree (deleted_at);
+
+
+--
+-- Name: price_group_rel_group_id_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX price_group_rel_group_id_idx ON public.price_group_rel USING btree (group_id);
+
+
+--
+-- Name: price_is_public_deleted_at_idx; Type: INDEX; Schema: public; Owner: -
+--
+
+CREATE INDEX price_is_public_deleted_at_idx ON public.price USING btree (is_public, deleted_at);
 
 
 --
@@ -19090,20 +19098,6 @@ CREATE UNIQUE INDEX vw_delivery_country_site_id_country_id_idx ON public.vw_deli
 
 
 --
--- Name: vw_shipping_zip_shipping_id_city_id_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX vw_shipping_zip_shipping_id_city_id_idx ON public.vw_shipping_zip USING btree (shipping_id, city_id) WHERE (courier IS TRUE);
-
-
---
--- Name: vw_shipping_zip_shipping_id_city_id_zip_idx; Type: INDEX; Schema: public; Owner: -
---
-
-CREATE INDEX vw_shipping_zip_shipping_id_city_id_zip_idx ON public.vw_shipping_zip USING btree (shipping_id, city_id, zip);
-
-
---
 -- Name: warehouse_deleted_at_idx; Type: INDEX; Schema: public; Owner: -
 --
 
@@ -19296,13 +19290,6 @@ CREATE TRIGGER commodity_group_init AFTER INSERT ON public.commodity_group FOR E
 --
 
 CREATE TRIGGER custom_item_after_insert AFTER INSERT ON public.custom_item FOR EACH ROW EXECUTE FUNCTION public.custom_item_after_insert();
-
-
---
--- Name: customer_group customer_group_after_insert; Type: TRIGGER; Schema: public; Owner: -
---
-
-CREATE TRIGGER customer_group_after_insert AFTER INSERT ON public.customer_group FOR EACH ROW EXECUTE FUNCTION public.customer_group_after_insert();
 
 
 --
@@ -20265,30 +20252,6 @@ ALTER TABLE ONLY public.cross_sell
 
 
 --
--- Name: customer_group customer_group_price_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_group
-    ADD CONSTRAINT customer_group_price_id_fkey FOREIGN KEY (price_id) REFERENCES public.price(price_id) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
--- Name: customer_group_text customer_group_text_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_group_text
-    ADD CONSTRAINT customer_group_text_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.customer_group(group_id) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
--- Name: customer_group_text customer_group_text_lang_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
---
-
-ALTER TABLE ONLY public.customer_group_text
-    ADD CONSTRAINT customer_group_text_lang_id_fkey FOREIGN KEY (lang_id) REFERENCES public.lang(lang_id) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
 -- Name: delivery_city delivery_city_site_delivery_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -21097,11 +21060,19 @@ ALTER TABLE ONLY public.person
 
 
 --
--- Name: person_profile person_profile_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+-- Name: person_group_rel person_group_rel_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
 --
 
-ALTER TABLE ONLY public.person_profile
-    ADD CONSTRAINT person_profile_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.customer_group(group_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+ALTER TABLE ONLY public.person_group_rel
+    ADD CONSTRAINT person_group_rel_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.customer_group(group_id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: person_group_rel person_group_rel_person_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.person_group_rel
+    ADD CONSTRAINT person_group_rel_person_id_fkey FOREIGN KEY (person_id) REFERENCES public.person(person_id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
@@ -21174,6 +21145,22 @@ ALTER TABLE ONLY public.person_visitor
 
 ALTER TABLE ONLY public.point_sale
     ADD CONSTRAINT point_sale_site_id_fkey FOREIGN KEY (site_id) REFERENCES public.site(site_id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: price_group_rel price_group_rel_group_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.price_group_rel
+    ADD CONSTRAINT price_group_rel_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.customer_group(group_id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: price_group_rel price_group_rel_price_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.price_group_rel
+    ADD CONSTRAINT price_group_rel_price_id_fkey FOREIGN KEY (price_id) REFERENCES public.price(price_id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
@@ -21736,20 +21723,6 @@ REFRESH MATERIALIZED VIEW public.vw_region;
 --
 
 REFRESH MATERIALIZED VIEW public.vw_shipping;
-
-
---
--- Name: vw_shipping_city; Type: MATERIALIZED VIEW DATA; Schema: public; Owner: -
---
-
-REFRESH MATERIALIZED VIEW public.vw_shipping_city;
-
-
---
--- Name: vw_shipping_zip; Type: MATERIALIZED VIEW DATA; Schema: public; Owner: -
---
-
-REFRESH MATERIALIZED VIEW public.vw_shipping_zip;
 
 
 --
