@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 13.13 (Debian 13.13-1.pgdg120+1)
+-- Dumped from database version 13.14 (Debian 13.14-1.pgdg120+2)
 -- Dumped by pg_dump version 13.1
 
 SET statement_timeout = 0;
@@ -4319,19 +4319,7 @@ $$;
 -- Name: delivery_server; Type: SERVER; Schema: -; Owner: -
 --
 
-CREATE SERVER delivery_server FOREIGN DATA WRAPPER postgres_fdw OPTIONS (
-    dbname 'delivery'
-);
-
-
---
--- Name: USER MAPPING postgres SERVER delivery_server; Type: USER MAPPING; Schema: -; Owner: -
---
-
-CREATE USER MAPPING FOR postgres SERVER delivery_server OPTIONS (
-    password '4mK5jdq3pT',
-    "user" 'delivery_view'
-);
+CREATE SERVER delivery_server FOREIGN DATA WRAPPER postgres_fdw;
 
 
 --
@@ -21681,48 +21669,6 @@ ALTER TABLE ONLY public.warehouse_text
 
 ALTER TABLE ONLY public.webhook_log
     ADD CONSTRAINT webhook_log_webhook_id_fk FOREIGN KEY (webhook_id) REFERENCES public.webhook(webhook_id) ON UPDATE CASCADE ON DELETE CASCADE;
-
-
---
--- Name: vw_city; Type: MATERIALIZED VIEW DATA; Schema: public; Owner: -
---
-
-REFRESH MATERIALIZED VIEW public.vw_city;
-
-
---
--- Name: vw_country; Type: MATERIALIZED VIEW DATA; Schema: public; Owner: -
---
-
-REFRESH MATERIALIZED VIEW public.vw_country;
-
-
---
--- Name: vw_delivery_city; Type: MATERIALIZED VIEW DATA; Schema: public; Owner: -
---
-
-REFRESH MATERIALIZED VIEW public.vw_delivery_city;
-
-
---
--- Name: vw_delivery_country; Type: MATERIALIZED VIEW DATA; Schema: public; Owner: -
---
-
-REFRESH MATERIALIZED VIEW public.vw_delivery_country;
-
-
---
--- Name: vw_region; Type: MATERIALIZED VIEW DATA; Schema: public; Owner: -
---
-
-REFRESH MATERIALIZED VIEW public.vw_region;
-
-
---
--- Name: vw_shipping; Type: MATERIALIZED VIEW DATA; Schema: public; Owner: -
---
-
-REFRESH MATERIALIZED VIEW public.vw_shipping;
 
 
 --
