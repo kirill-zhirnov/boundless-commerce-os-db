@@ -2,8 +2,8 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 13.14 (Debian 13.14-1.pgdg120+2)
--- Dumped by pg_dump version 13.1
+-- Dumped from database version 13.15 (Debian 13.15-1.pgdg120+1)
+-- Dumped by pg_dump version 13.13
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -363,7 +363,8 @@ CREATE TABLE public.instance (
     renew boolean DEFAULT true NOT NULL,
     quickpay_subscription_id bigint,
     consumed_space_s3 bigint,
-    consumed_space_db bigint
+    consumed_space_db bigint,
+    last_usage_at timestamp with time zone
 );
 
 
@@ -1152,7 +1153,7 @@ COPY public.host (host_id, instance_id, host, our_dns_records, type, site_id) FR
 -- Data for Name: instance; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public.instance (instance_id, status, path, client_id, tariff_id, balance, currency_id, is_demo, available_since, unavailable_since, paid_till, remove_me, data, client_email, is_free, from_sample_id, config, renew, quickpay_subscription_id, consumed_space_s3, consumed_space_db) FROM stdin;
+COPY public.instance (instance_id, status, path, client_id, tariff_id, balance, currency_id, is_demo, available_since, unavailable_since, paid_till, remove_me, data, client_email, is_free, from_sample_id, config, renew, quickpay_subscription_id, consumed_space_s3, consumed_space_db, last_usage_at) FROM stdin;
 \.
 
 
@@ -1704,6 +1705,8 @@ m240113_165349_customerGroups	2024-01-20 15:27:33.916217+00
 m240117_091503_priceTypes	2024-01-20 15:27:33.9944+00
 m240119_191436_vwInventoryItemPublicPrices	2024-01-20 15:27:34.03222+00
 m240120_144147_rmLegacyViews	2024-01-20 15:27:34.055521+00
+m240511_155153_mailDbTables	2024-06-03 15:08:34.802064+00
+m240603_162917_lastUsageAt	2024-06-03 15:08:34.809453+00
 \.
 
 
